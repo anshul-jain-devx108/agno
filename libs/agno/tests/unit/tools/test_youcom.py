@@ -87,7 +87,8 @@ def test_search_success(youcom_tools):
     assert kwargs["params"]["query"] == "test query"
     assert kwargs["params"]["count"] == 3
     assert kwargs["params"]["livecrawl"] == "web"
-    assert kwargs["params"]["livecrawl_formats"] == "markdown"
+    assert kwargs["params"]["livecrawl_formats"] == ["markdown"]
+    assert kwargs["params"]["crawl_timeout"] == 10
     assert kwargs["headers"]["X-API-Key"] == "test-key"
 
 
@@ -105,6 +106,81 @@ def test_search_passes_domain_filters():
     params = client.get.call_args.kwargs["params"]
     assert params["include_domains"] == "example.com,example.org"
     assert params["exclude_domains"] == "spam.com"
+
+
+def test_search_passes_new_params():
+    with patch.dict("os.environ", {"YDC_API_KEY": "test-key"}):
+        tools = YouTools(
+            country="IN",
+            freshness="month",
+            language="EN",
+            safesearch="moderate",
+            offset=10,
+            boost_domains=["gov.in", "edu.in"],
+        )
+
+    patcher, client = _patch_client({"results": []})
+    with patcher:
+        tools.you_search("test query")
+
+    params = client.get.call_args.kwargs["params"]
+    assert params["country"] == "IN"
+    assert params["freshness"] == "month"
+    assert params["language"] == "EN"
+    assert params["safesearch"] == "moderate"
+    assert params["offset"] == 10
+    assert params["boost_domains"] == "gov.in,edu.in"
+
+
+def test_search_omits_unset_params():
+    with patch.dict("os.environ", {"YDC_API_KEY": "test-key"}):
+        tools = YouTools()
+
+    patcher, client = _patch_client({"results": []})
+    with patcher:
+        tools.you_search("test query")
+
+    params = client.get.call_args.kwargs["params"]
+    assert "country" not in params
+    assert "freshness" not in params
+    assert "language" not in params
+    assert "safesearch" not in params
+    assert "offset" not in params
+    assert "boost_domains" not in params
+    assert "include_domains" not in params
+    assert "exclude_domains" not in params
+
+
+def test_search_livecrawl_formats_list():
+    with patch.dict("os.environ", {"YDC_API_KEY": "test-key"}):
+        tools = YouTools(livecrawl_formats=["html", "markdown"])
+
+    patcher, client = _patch_client({"results": []})
+    with patcher:
+        tools.you_search("test query")
+
+    params = client.get.call_args.kwargs["params"]
+    assert params["livecrawl_formats"] == ["html", "markdown"]
+
+
+def test_search_livecrawl_formats_comma_string():
+    with patch.dict("os.environ", {"YDC_API_KEY": "test-key"}):
+        tools = YouTools(livecrawl_formats="html, markdown")
+
+    patcher, client = _patch_client({"results": []})
+    with patcher:
+        tools.you_search("test query")
+
+    params = client.get.call_args.kwargs["params"]
+    assert params["livecrawl_formats"] == ["html", "markdown"]
+
+
+def test_crawl_timeout_validation():
+    with pytest.raises(ValueError, match="crawl_timeout must be between 1 and 60 seconds"):
+        YouTools(crawl_timeout=0)
+
+    with pytest.raises(ValueError, match="crawl_timeout must be between 1 and 60 seconds"):
+        YouTools(crawl_timeout=61)
 
 
 def test_search_markdown_format():

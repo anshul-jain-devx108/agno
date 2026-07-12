@@ -1,6 +1,6 @@
 import json
 from os import getenv
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 
 import httpx
 
@@ -25,13 +25,20 @@ class YouTools(Toolkit):
         base_url (Optional[str]): Override the API base URL. Falls back to the ``YDC_BASE_URL``
             env var, then defaults to ``https://ydc-index.io``.
         num_results (int): Default number of search results. Default is 5.
-        livecrawl (str): Live-crawl mode for the search API (``"web"``, ``"always"``,
-            ``"fallback"``, ``"never"``). Default is ``"web"``.
-        livecrawl_formats (str): Comma-separated content formats to request from livecrawl
-            (e.g. ``"markdown"``, ``"text"``). Default is ``"markdown"``.
+        livecrawl (str): Live-crawl mode for the search API (``"web"``, ``"news"``,
+            ``"all"``). Default is ``"web"``.
+        livecrawl_formats (Union[str, List[str]]): Content formats to request from livecrawl
+            (e.g. ``"markdown"``, ``"html"``, or ``["markdown", "html"]``). Default is ``"markdown"``.
         text_length_limit (int): Max length of text content per result. Default is 1000.
         include_domains (Optional[List[str]]): Restrict results to these domains.
         exclude_domains (Optional[List[str]]): Exclude results from these domains.
+        country (Optional[str]): The country code that determines the geographical focus of the web results.
+        freshness (Optional[str]): Specifies the freshness of the results to return (e.g. "day", "week", "month", "year").
+        language (Optional[str]): The language of the web results that will be returned (BCP 47 format).
+        safesearch (Optional[str]): Configures the safesearch filter for content moderation ("off", "moderate", "strict").
+        offset (Optional[int]): Indicates the offset for pagination.
+        boost_domains (Optional[List[str]]): A list of domains to boost in search ranking.
+        crawl_timeout (int): Maximum time in seconds to wait for page content when livecrawl is enabled. Must be between 1 and 60 seconds. Default is 10.
         timeout (int): Maximum time in seconds to wait for API responses. Default is 30.
         format (str): Output format for search results (``"json"`` or ``"markdown"``).
             Default is ``"json"``.
@@ -43,11 +50,18 @@ class YouTools(Toolkit):
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         num_results: int = 5,
-        livecrawl: Literal["always", "fallback", "never", "web"] = "web",
-        livecrawl_formats: str = "markdown",
+        livecrawl: Literal["web", "news", "all"] = "web",
+        livecrawl_formats: Union[str, List[str]] = "markdown",
         text_length_limit: int = 1000,
         include_domains: Optional[List[str]] = None,
         exclude_domains: Optional[List[str]] = None,
+        country: Optional[str] = None,
+        freshness: Optional[str] = None,
+        language: Optional[str] = None,
+        safesearch: Optional[str] = None,
+        offset: Optional[int] = None,
+        boost_domains: Optional[List[str]] = None,
+        crawl_timeout: int = 10,
         timeout: int = 30,
         format: Literal["json", "markdown"] = "json",
         show_results: bool = False,
@@ -57,13 +71,23 @@ class YouTools(Toolkit):
         if not self.api_key:
             log_error("YDC_API_KEY not set. Please set the YDC_API_KEY environment variable.")
 
+        if not (1 <= crawl_timeout <= 60):
+            raise ValueError("crawl_timeout must be between 1 and 60 seconds")
+
         self.base_url: str = (base_url or getenv("YDC_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.num_results: int = num_results
         self.livecrawl: str = livecrawl
-        self.livecrawl_formats: str = livecrawl_formats
+        self.livecrawl_formats: Union[str, List[str]] = livecrawl_formats
         self.text_length_limit: int = text_length_limit
         self.include_domains: Optional[List[str]] = include_domains
         self.exclude_domains: Optional[List[str]] = exclude_domains
+        self.country: Optional[str] = country
+        self.freshness: Optional[str] = freshness
+        self.language: Optional[str] = language
+        self.safesearch: Optional[str] = safesearch
+        self.offset: Optional[int] = offset
+        self.boost_domains: Optional[List[str]] = boost_domains
+        self.crawl_timeout: int = crawl_timeout
         self.timeout: int = timeout
         self.format: Literal["json", "markdown"] = format
         self.show_results: bool = show_results
@@ -98,12 +122,29 @@ class YouTools(Toolkit):
                 "query": query,
                 "count": num_results or self.num_results,
                 "livecrawl": self.livecrawl,
-                "livecrawl_formats": self.livecrawl_formats,
+                "crawl_timeout": self.crawl_timeout,
             }
+            if isinstance(self.livecrawl_formats, str):
+                params["livecrawl_formats"] = [f.strip() for f in self.livecrawl_formats.split(",") if f.strip()]
+            else:
+                params["livecrawl_formats"] = self.livecrawl_formats
+
             if self.include_domains:
                 params["include_domains"] = ",".join(self.include_domains)
             if self.exclude_domains:
                 params["exclude_domains"] = ",".join(self.exclude_domains)
+            if self.country:
+                params["country"] = self.country
+            if self.freshness:
+                params["freshness"] = self.freshness
+            if self.language:
+                params["language"] = self.language
+            if self.safesearch:
+                params["safesearch"] = self.safesearch
+            if self.offset is not None:
+                params["offset"] = self.offset
+            if self.boost_domains:
+                params["boost_domains"] = ",".join(self.boost_domains)
 
             with httpx.Client(timeout=self.timeout) as client:
                 response = client.get(f"{self.base_url}/v1/search", headers=self._headers(), params=params)
