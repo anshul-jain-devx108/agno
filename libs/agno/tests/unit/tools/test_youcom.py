@@ -160,6 +160,35 @@ def test_search_snippets_list_used_as_text():
     assert parsed[0]["text"] == "first paragraph\nsecond paragraph"
 
 
+def test_search_deduplicates_description_and_first_snippet():
+    """If the description is a substring/truncated version of the first snippet, it should not be repeated in text."""
+    payload = {
+        "results": {
+            "web": [
+                {
+                    "url": "https://web.example.com",
+                    "title": "Web Page",
+                    "description": "This is a truncated description...",
+                    "snippets": [
+                        "This is a truncated description but the full sentence goes on.",
+                        "Second paragraph here.",
+                    ],
+                }
+            ]
+        }
+    }
+    tools = YouTools()
+
+    patcher, _ = _patch_client(payload)
+    with patcher:
+        result = tools.you_search("q")
+    parsed = json.loads(result)
+
+    assert parsed[0]["snippet"] == "This is a truncated description..."
+    # The first snippet should be skipped because the description is a substring of it
+    assert parsed[0]["text"] == "Second paragraph here."
+
+
 def test_search_prefers_contents_over_snippets():
     """When both livecrawled contents and snippets exist, contents.markdown wins."""
     payload = {

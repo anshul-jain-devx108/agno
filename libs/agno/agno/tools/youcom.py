@@ -179,11 +179,18 @@ class YouTools(Toolkit):
 
     def _format_results(self, query: str, data: Dict[str, Any]) -> str:
         results = data.get("results")
-        # Results are grouped by source (web/news); flatten them into a single list.
+
+        # Results might be grouped by source (web/news) or a flat list.
         if isinstance(results, dict):
-            raw_results = [r for section in results.values() if isinstance(section, list) for r in section]
+            raw_results = []
+            for section in results.values():
+                if isinstance(section, list):
+                    raw_results.extend(section)
+        elif isinstance(results, list):
+            raw_results = results
         else:
-            raw_results = results or data.get("hits") or []
+            raw_results = data.get("hits") or []
+
         cleaned: List[Dict[str, Any]] = []
         for r in raw_results:
             if not isinstance(r, dict):
@@ -193,21 +200,39 @@ class YouTools(Toolkit):
                 entry["url"] = r["url"]
             if r.get("title"):
                 entry["title"] = r["title"]
+
             snippet = r.get("description") or r.get("snippet")
             if snippet:
                 entry["snippet"] = snippet
-            # Body text comes from livecrawled "contents", else the "snippets" list.
+
+            # Body text comes from livecrawled "contents" or "text"
             contents = r.get("contents")
-            if not isinstance(contents, dict):
-                contents = r
-            text = contents.get("markdown") or contents.get("text") or contents.get("html") or contents.get("content")
-            if not text and isinstance(r.get("snippets"), list):
-                text = "\n".join(s for s in r["snippets"] if isinstance(s, str)) or None
+            text = None
+            if isinstance(contents, dict):
+                text = contents.get("markdown") or contents.get("html") or contents.get("text")
+
+            if not text:
+                text = r.get("markdown") or r.get("text") or r.get("content")
+
+            if not text:
+                snippets_list = r.get("snippets")
+                if isinstance(snippets_list, list) and snippets_list:
+                    valid_snippets = snippets_list
+                    if snippet and isinstance(snippets_list[0], str):
+                        clean_desc = snippet.rstrip(" .")
+                        if clean_desc and (clean_desc in snippets_list[0] or snippets_list[0] in clean_desc):
+                            valid_snippets = snippets_list[1:]
+
+                    if valid_snippets:
+                        text = "\n".join(str(s) for s in valid_snippets if s)
+
             if text:
                 entry["text"] = self._truncate(text)
+
             published_date = r.get("published_date") or r.get("page_age")
             if published_date:
                 entry["published_date"] = published_date
+
             cleaned.append(entry)
 
         if self.format == "markdown":
