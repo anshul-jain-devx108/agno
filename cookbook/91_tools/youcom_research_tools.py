@@ -1,7 +1,8 @@
 import os
+
 from agno.agent import Agent
 from agno.models.openai.like import OpenAILike
-from agno.tools.youcom.research import YouResearchTools 
+from agno.tools.youcom.research import YouResearchTools
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,15 +17,15 @@ agent = Agent(
     ),
     tools=[
         YouResearchTools(
-            format="markdown",  
-            show_results=True,  
+            format="markdown",
+            show_results=True,
             research_effort="standard",
             timeout=150,  # Timemout should be set properly beacuse reasearch api's take time
         ),
     ],
-    tool_call_limit=1,  
+    tool_call_limit=1,
     debug_mode=True,
-    debug_level=2,  
+    debug_level=2,
     markdown=True,
 )
 
