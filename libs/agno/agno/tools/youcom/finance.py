@@ -37,9 +37,7 @@ class YouFinanceResearchTools(Toolkit):
         research_effort (str): Controls depth vs. speed trade-off.
             One of ``"deep"`` or ``"exhaustive"``.  Default is ``"deep"``.
         text_length_limit (int): Max characters to keep per source snippet. Default is 1000.
-        timeout (int): Client-side HTTP timeout in seconds. Default is 120
-            (finance research requests involve multi-step reasoning and are slower than
-            simple searches).
+        timeout (int): Client-side HTTP timeout in seconds. Default is 15.
         format (str): Output format (``"json"`` or ``"markdown"``). Default is ``"json"``.
         show_results (bool): Log the full response for debugging. Default is False.
     """

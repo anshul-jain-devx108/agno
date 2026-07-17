@@ -38,7 +38,7 @@ def test_base_url_strips_trailing_slash():
 
 def test_default_timeout():
     tools = YouFinanceResearchTools(api_key="test")
-    assert tools.timeout == 120
+    assert tools.timeout == 15
 
 
 def test_default_research_effort():
